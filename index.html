@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
+<script>document.documentElement.className += " js";</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Randika Prasad: AI model migrations</title>
@@ -56,6 +57,7 @@
   a:hover { text-decoration-thickness: 2px; }
   p { margin: 0 0 1em; }
   code, .mono { font-family: var(--mono); font-size: .84em; }
+  code, pre, textarea, .res-code, .term-body { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; tab-size: 4; }
   p code, li code, .work code { background: var(--code-bg); padding: .12em .4em; border-radius: 6px; }
 
   .wrap { max-width: 58rem; margin: 0 auto; padding: 0 24px; }
@@ -119,8 +121,83 @@
   .code .ctx { color: var(--ink-3); }
   .code .del { background: var(--del-bg); color: var(--del-ink); }
   .code .add { background: var(--add-bg); color: var(--add-ink); }
-  .terminal { margin-top: 32px; }
-  .terminal img { display: block; width: 100%; height: auto; border-radius: var(--r); }
+  /* animated terminal */
+  .term { margin-top: 32px; }
+  .term-win { background: var(--card); border: 1px solid #E2D9C9; border-radius: var(--r); overflow: hidden; box-shadow: 0 2px 4px rgba(60,45,25,.04), 0 10px 28px rgba(60,45,25,.06); }
+  .term-bar { display: flex; align-items: center; gap: 7px; padding: 10px 14px 10px 16px; background: #F3EDE2; border-bottom: 1px solid #E7DFD1; font: 500 .76rem var(--mono); color: var(--ink-3); }
+  .term-bar i { width: 11px; height: 11px; border-radius: 50%; background: #E9B9A0; }
+  .term-bar i:nth-child(2) { background: #EBD49A; } .term-bar i:nth-child(3) { background: #A9C2A8; }
+  .term-bar span { margin-left: 8px; }
+  .replay { margin-left: auto; font: 500 .76rem var(--sans); color: var(--sage-ink); background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 4px 13px; cursor: pointer; }
+  .replay:hover { border-color: var(--sage); }
+  .term-body { margin: 0; padding: 18px 20px 20px; min-height: 22rem; font: 400 .82rem/1.7 var(--mono); color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .term-body .tl { display: block; }
+  .term-body b { font-weight: 600; }
+  .t-prompt { color: var(--sage-ink); font-weight: 600; }
+  .t-file { font-weight: 600; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: #D9CFBF; }
+  .t-high { color: #fff; background: #B5543B; border-radius: 4px; padding: 0 5px; font-weight: 600; }
+  .t-rule { color: var(--sage-ink); font-weight: 600; }
+  .t-dim { color: #8A847A; }
+  .js .term.armed .tl:not(.t-cmd) { visibility: hidden; }
+  .js .term .tl.shown { visibility: visible !important; animation: lineIn .25s ease-out; }
+  @keyframes lineIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+  .caret { display: none; width: .55em; height: 1.1em; margin-left: 2px; vertical-align: -2px; background: var(--sage); }
+  .term.typing .caret { display: inline-block; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* checker */
+  .checker { padding: 0; overflow: hidden; }
+  .checker-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 14px 18px; border-bottom: 1px solid var(--line); background: var(--code-bg); }
+  .lang { font-size: .88rem; color: var(--ink-2); display: flex; align-items: center; gap: 10px; }
+  .lang select { font: 500 .88rem var(--sans); color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; }
+  .ghost { font: 600 .88rem var(--sans); color: var(--sage-ink); background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 8px 16px; cursor: pointer; transition: border-color .2s, background .2s; }
+  .ghost:hover { border-color: var(--sage); background: #fff; }
+  #code { display: block; width: 100%; min-height: 15rem; resize: vertical; border: 0; outline: 0; padding: 16px 18px; background: var(--card); color: var(--ink); font: 400 .84rem/1.65 var(--mono); tab-size: 4; }
+  #code:focus { box-shadow: inset 0 0 0 2px var(--sage-soft); }
+  .example-note { margin: 0; padding: 10px 18px; font-size: .84rem; color: var(--ink-3); border-top: 1px solid var(--line); }
+  .checker-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; padding: 14px 18px; border-top: 1px solid var(--line); }
+  .private { margin: 0; font-size: .9rem; color: var(--sage-ink); font-weight: 500; display: flex; align-items: center; gap: 9px; }
+  .dot-ok { width: 9px; height: 9px; border-radius: 50%; background: var(--sage); flex: none; }
+  .button.small { font-size: 1rem; padding: 11px 30px; border: 0; cursor: pointer; font-family: var(--sans); }
+
+  .results { margin-top: 20px; }
+  .res-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; background: var(--peach-soft); border: 1px solid var(--peach); border-radius: var(--r); padding: 16px 20px; margin-bottom: 14px; }
+  .res-summary.clean { background: var(--sage-soft); border-color: #D3DFD1; }
+  .res-summary p { margin: 0; font-weight: 500; }
+  .res-summary strong { font-family: var(--serif); font-size: 1.2rem; }
+  .res-code { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); max-height: 30rem; overflow: auto; font: 400 .8rem/1.65 var(--mono); }
+  .res-line { display: grid; grid-template-columns: 3.4rem 1fr; min-width: max-content; }
+  .res-line .no { text-align: right; padding-right: 14px; color: #B3ADA3; user-select: none; position: sticky; left: 0; background: var(--card); }
+  .res-line .tx { white-space: pre; padding-right: 18px; }
+  .res-line.hit { background: #FBE4D6; }
+  .res-line.hit .no { background: #FBE4D6; color: #8E3B2B; font-weight: 600; }
+  .res-note { margin: 2px 12px 8px 3.4rem; padding: 10px 14px; background: #fff; border: 1px solid var(--peach); border-left: 3px solid #B5543B; border-radius: 10px; font-family: var(--sans); font-size: .86rem; line-height: 1.55; white-space: normal; max-width: 44rem; position: sticky; left: 3.4rem; }
+  .res-note .t-high { font-family: var(--mono); font-size: .72rem; }
+  .res-note .rid { font-family: var(--mono); color: var(--sage-ink); font-weight: 600; margin: 0 6px; font-size: .8rem; }
+  .res-note p { margin: 4px 0 0; color: var(--ink-2); }
+  .res-note .fx { color: var(--ink); }
+  .res-note a { font-size: .82rem; }
+  .res-gap { color: #B3ADA3; padding: 2px 0 2px 1.2rem; user-select: none; }
+  .res-cta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-top: 16px; }
+  .res-cta p { margin: 0; color: var(--ink-2); }
+
+  /* reveal on scroll */
+  .js .reveal { opacity: 0; transform: translateY(14px); transition: opacity .7s ease, transform .7s ease; }
+  .js .reveal.in { opacity: 1; transform: none; }
+
+  /* hover polish */
+  .card, .button, .tags li, .work li { transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease, background .25s ease; }
+  .plan:hover, .other:hover, .breaks .card:hover, .sample:hover { transform: translateY(-3px); box-shadow: 0 2px 4px rgba(60,45,25,.05), 0 12px 28px rgba(60,45,25,.08); }
+  .button:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(79,111,85,.22); }
+  .work li:hover { background: #FFFBF4; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .js .reveal { opacity: 1; transform: none; transition: none; }
+    .card, .button, .tags li, .work li { transition: none; }
+    .plan:hover, .other:hover, .breaks .card:hover, .sample:hover, .button:hover { transform: none; }
+    .js .term .tl.shown { animation: none; }
+    .term.typing .caret { animation: none; }
+  }
   figcaption { font-size: .93rem; color: var(--ink-3); margin-top: 12px; max-width: 42rem; }
 
   /* work */
@@ -201,6 +278,8 @@
   /* tablets */
   @media (max-width: 860px) {
     .get { grid-template-columns: 1fr; }
+    .term-body { font-size: .74rem; padding: 14px 14px 16px; min-height: 0; }
+    .res-note { margin-left: .6rem; left: .6rem; }
     .hero { grid-template-columns: 1fr 17rem; gap: 28px; }
     .breaks { grid-template-columns: 1fr; }
     .steps { grid-template-columns: 1fr 1fr; }
@@ -359,10 +438,39 @@
     <figcaption>The real fix from <a href="https://github.com/thinkingkoala/youtube_transcription_api/pull/2">this pull request</a>: try the new model name first, and if tiktoken doesn't know it, fall back to <code>o200k_base</code>, the encoding <code>gpt-4o-mini</code> used. Chunk sizes stay the same.</figcaption>
   </figure>
 
-  <figure class="terminal">
-    <a href="images/luna-check-output.webp"><picture><source media="(max-width: 640px)" srcset="images/luna-check-output-mobile.webp" width="1100" height="1474"><img src="images/luna-check-output.webp" width="2196" height="1272" loading="lazy" decoding="async" alt="Terminal output of luna-check 0.2.0 on youtube_transcription_api: 2 HIGH findings in app.py. Line 43, LC002: tiktoken.encoding_for_model() raises KeyError for gpt-6-luna. Line 73, LC001: model gpt-4o-mini shuts down on Jan 14, 2027."></picture></a>
+  <figure class="term" id="demo">
+    <div class="term-win">
+      <div class="term-bar"><i></i><i></i><i></i><span>terminal</span><button type="button" class="replay" id="replay" hidden>Replay</button></div>
+<pre class="term-body" aria-label="luna-check output"><span class="tl t-cmd"><span class="t-prompt">$</span> <b id="cmdtext">luna-check youtube_transcription_api</b><span class="caret" aria-hidden="true"></span></span><span class="tl">luna-check 0.2.0: scanned 2 file(s) in youtube_transcription_api</span><span class="tl"> </span><span class="tl"><span class="t-file">app.py</span></span><span class="tl"><span class="t-dim">  line 43</span>  <span class="t-high">HIGH</span>  <span class="t-rule">LC002</span>  <b>tiktoken.encoding_for_model() raises KeyError for gpt-6-luna</b></span><span class="tl">      Called with "gpt-4o-mini". tiktoken has no entry for "gpt-6-luna", so after the switch this raises KeyError (checked with tiktoken 0.7.0 and 0.14.0).</span><span class="tl">      <span class="t-rule">Fix:</span> Catch the error and fall back to get_encoding("o200k_base"), the encoding tiktoken uses for gpt-4o, gpt-4o-mini, gpt-4.1 and gpt-4.1-mini.</span><span class="tl">      <span class="t-dim">Source: https://github.com/openai/tiktoken/blob/main/tiktoken/model.py</span></span><span class="tl"><span class="t-dim">  line 73</span>  <span class="t-high">HIGH</span>  <span class="t-rule">LC001</span>  <b>Model shuts down on Jan 14, 2027</b></span><span class="tl">      "gpt-4o-mini" points to the dated snapshot(s) gpt-4o-mini-2024-07-18, which shut down on Jan 14, 2027. Replace it with "gpt-6-luna".</span><span class="tl">      <span class="t-rule">Fix:</span> Use "gpt-6-luna" (or read the model name from config).</span><span class="tl">      <span class="t-dim">Source: https://developers.openai.com/api/docs/deprecations</span></span><span class="tl"> </span><span class="tl"><b>Found 2 high, 0 low in 1 file(s).</b></span><span class="tl"> </span><span class="tl"><span class="t-dim">Need help migrating? github.com/prasadrandika</span></span></pre>
+    </div>
     <figcaption>Real output from <a href="https://github.com/prasadrandika/luna-check">luna-check</a> 0.2.0, run on the original code of youtube_transcription_api, before my fix. It finds both problems the fix above solves.</figcaption>
   </figure>
+</section>
+
+<section id="check">
+  <h2>Check your code</h2>
+  <p class="intro">Paste Python, JavaScript/TypeScript or Go code and click Check. It runs the same 4 rules as luna-check 0.2.0, ported to JavaScript.</p>
+  <div class="checker card">
+    <div class="checker-bar">
+      <label class="lang">Language
+        <select id="lang">
+          <option value="auto">Auto-detect</option>
+          <option value="python">Python</option>
+          <option value="javascript">JavaScript / TypeScript</option>
+          <option value="go">Go</option>
+        </select>
+      </label>
+      <button type="button" class="ghost" id="example">Try an example</button>
+    </div>
+    <textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Code to check" placeholder="Paste your code here, for example a file that calls the OpenAI API."></textarea>
+    <p class="example-note" id="example-note" hidden>Example: <code>agents/books/llm.go</code> from <a href="https://github.com/Nasiko-Labs/nasiko/blob/97cd065eebafc748ed78fbef750c7a2b12622b04/agents/books/llm.go">Nasiko</a> as it was before my migration (Apache-2.0, <a href="examples/nasiko-LICENSE.txt">license</a>).</p>
+    <div class="checker-foot">
+      <p class="private"><span class="dot-ok" aria-hidden="true"></span>Your code never leaves your browser. The check runs on this page and nothing is uploaded.</p>
+      <button type="button" class="button small" id="run">Check</button>
+    </div>
+  </div>
+  <div class="results" id="results" aria-live="polite" hidden></div>
+  <p class="small-note">These 4 rules catch the problems I've seen most in real migrations. They're not a full review: a clean result means none of these patterns were found, not that the code is ready.</p>
 </section>
 
 <section id="try">
@@ -537,5 +645,7 @@
     });
   });
 </script>
+<script src="js/luna-check.js" defer></script>
+<script src="js/site.js" defer></script>
 </body>
 </html>
