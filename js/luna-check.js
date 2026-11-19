@@ -1,13 +1,16 @@
 /*
  * luna-check rules, ported to JavaScript for the browser.
  *
- * A line-by-line port of luna-check 0.2.0 (MIT,
- * https://github.com/prasadrandika/luna-check): lexer.py, rules.py and
- * checks.py, plus the "luna-check: ignore" filter and sort order from
- * scanner.py. It runs entirely in the page; nothing is sent anywhere.
+ * A line-by-line port of luna-check 0.3.0 (MIT,
+ * https://github.com/prasadrandika/luna-check): lexer.py, rules.py,
+ * checks.py and config.py, plus the "luna-check: ignore" filter and sort
+ * order from scanner.py. It runs entirely in the page; nothing is sent anywhere.
  *
- * Usage: LunaCheck.check(sourceText, "python" | "javascript" | "go")
- *   -> [{ line, rule, title, severity, message, fix, source }]
+ * Usage: LunaCheck.check(text, "python" | "javascript" | "go" | "env" | "yaml" | "json" | "toml")
+ *   -> [{ line, rule, title, severity, message, fix, source, lowReason }]
+ *
+ * Pasted text has no file name, so the LOW rules that depend on the path
+ * (seed/demo files, example configs) do not apply here. Model catalogs do.
  */
 (function (root) {
   "use strict";
@@ -17,11 +20,12 @@
   // ---------------------------------------------------------------- rules.py
   var DEPRECATIONS_URL = "https://developers.openai.com/api/docs/deprecations";
   var LUNA_MODEL_URL = "https://developers.openai.com/api/docs/models/gpt-6-luna";
-  var GUIDE_URL = "https://developers.openai.com/api/docs/guides/latest-model";
+  // "Using GPT-6" guide. Its migration quickstart names gpt-6-luna as a target model.
+  var GUIDE_URL = "https://developers.openai.com/api/docs/guides/latest-model/gpt-6-astra.md#migration-quickstart";
   var TIKTOKEN_MODEL_URL = "https://github.com/openai/tiktoken/blob/main/tiktoken/model.py";
   var REPLACEMENT = "gpt-6-luna";
   var SHUTDOWN_DATE = "Jan 14, 2027";
-  var HIGH = "high";
+  var HIGH = "high", LOW = "low";
   var OLD_ENCODING = "o200k_base";
 
   var RULES = {
@@ -228,24 +232,78 @@
   }
 
   function finding(line, rule, message, fix) {
-    return { line: line, rule: rule.id, title: rule.title, severity: HIGH, message: message, fix: fix, source: rule.source };
+    return { line: line, rule: rule.id, title: rule.title, severity: HIGH, message: message, fix: fix, source: rule.source, lowReason: "" };
   }
 
   // LC001
+  // Any model name, from any provider. Used only to count how many model names
+  // sit together in one list or map, so a catalog is not mistaken for a setting.
+  var ANY_MODEL_RE = new RegExp(
+    "^(?:[\\w.-]+/)?(?:gpt-|chatgpt-|o[1-9](?:-|$)|claude-|gemini-|text-embedding-|" +
+    "text-davinci|davinci|babbage|dall-e|whisper-|tts-|codex-|llama|mistral|mixtral|" +
+    "command-|deepseek|qwen|grok-|sonar)[\\w.:-]*$", "i");
+  var CATALOG_MIN = 4;
+  var CATALOG_NOTE = "model list";
+  var CATALOG_MESSAGE = " (One entry in a list of many model names, so lower priority.)";
+  var CATALOG_FIX = 'Remove it from the list, or add "' + REPLACEMENT + '" if the list is missing it.';
+
+  function lowerAsCatalog(f) {
+    f.severity = LOW;
+    f.lowReason = CATALOG_NOTE;
+    f.message += CATALOG_MESSAGE;
+    f.fix = CATALOG_FIX;
+    return f;
+  }
+
+  // Map each string's start offset to the offset of its innermost open bracket.
+  function innermostContainers(lx) {
+    var starts = lx.strings.map(function (lit) { return lit.start; }).sort(function (a, b) { return a - b; });
+    var out = {}, stack = [], si = 0, code = lx.code;
+    for (var i = 0; i < code.length; i++) {
+      while (si < starts.length && starts[si] <= i) {
+        out[starts[si]] = stack.length ? stack[stack.length - 1] : null;
+        si++;
+      }
+      var ch = code[i];
+      if (ch === "(" || ch === "[" || ch === "{") stack.push(i);
+      else if ((ch === ")" || ch === "]" || ch === "}") && stack.length) stack.pop();
+    }
+    for (; si < starts.length; si++) out[starts[si]] = stack.length ? stack[stack.length - 1] : null;
+    return out;
+  }
+
+  function catalogContainers(lx) {
+    var where = innermostContainers(lx), names = {}, catalogs = {};
+    lx.strings.forEach(function (lit) {
+      var c = where[lit.start];
+      if (c !== null && c !== undefined && !lit.docstring && ANY_MODEL_RE.test(lit.value)) {
+        (names[c] = names[c] || {})[lit.value] = true;
+      }
+    });
+    Object.keys(names).forEach(function (c) {
+      if (Object.keys(names[c]).length >= CATALOG_MIN) catalogs[c] = true;
+    });
+    return { catalogs: catalogs, where: where };
+  }
+
   function checkModelIds(lx, skipLines) {
     var out = [], seen = {};
+    var cc = catalogContainers(lx);
     lx.strings.forEach(function (lit) {
       if (lit.docstring || !lit.value) return;
       if (/\s/.test(lit.value)) return;
       if (inSet(lx.prevChar(lit.start), "{,") && lx.nextChar(lit.end) === ":" && lx.prevChar(lit.start)) return;
+      var container = cc.where[lit.start];
+      var inCatalog = container !== null && container !== undefined && cc.catalogs[container] === true;
       var base = valueOffset(lx, lit);
       retiringIds(lit.value).forEach(function (m) {
         var line = lx.lineOf(base + m.index);
         var key = line + "|" + m.id;
         if (skipLines[line] || PRICE_RE.test(lx.lineText(line)) || seen[key]) return;
         seen[key] = true;
-        out.push(finding(line, RULES.MODEL_ID, modelMessage(m.id),
-          'Use "' + REPLACEMENT + '" (or read the model name from config).'));
+        var f = finding(line, RULES.MODEL_ID, modelMessage(m.id),
+          'Use "' + REPLACEMENT + '" (or read the model name from config).');
+        out.push(inCatalog ? lowerAsCatalog(f) : f);
       });
     });
     return out;
@@ -312,7 +370,9 @@
 
   function toolsFinding(line) {
     return finding(line, RULES.CHAT_TOOLS,
-      'Function tools are sent to /chat/completions with no reasoning_effort. gpt-6-luna "supports function calling only with `reasoning_effort` set to `none`" on Chat Completions.',
+      "Function tools are sent to /chat/completions with no reasoning_effort. " +
+      "The gpt-6-luna model page says that on Chat Completions it accepts function " +
+      'calling only when reasoning_effort is "none".',
       'Send reasoning_effort "none" with gpt-6-luna, or move to the Responses API.');
   }
 
@@ -389,11 +449,10 @@
   }
 
   function samplingFinding(line, param) {
-    // luna-check 0.2.0 quotes OpenAI's guide here. That wording is no longer
-    // on the live guide, so this message describes the rule instead of quoting.
     return finding(line, RULES.SAMPLING,
-      '"' + param + '" is sent and reasoning effort is not "none" (gpt-6-luna defaults to "medium"). ' +
-      "OpenAI's migration guide says to omit temperature, top_p and top_logprobs (and logprobs on Chat Completions) when moving to its newest reasoning models.",
+      '"' + param + '" is sent and reasoning effort is not "none" (gpt-6-luna defaults ' +
+      'to "medium"). OpenAI\'s Using GPT-6 guide says to drop temperature, top_p ' +
+      "and top_logprobs in that case, and also logprobs on Chat Completions.",
       'Remove "' + param + '" from this request when moving to gpt-6-luna.');
   }
 
@@ -453,19 +512,205 @@
     return findings;
   }
 
+  // ---------------------------------------------------------------- config.py
+  // LC001 for config files. A retiring model ID counts only as the value of a
+  // model-like key such as model, model_name, default_model or OPENAI_MODEL.
+  var ENV = "env", YAML = "yaml", JSON_ = "json", TOML = "toml";
+  var CONFIG_KINDS = [ENV, YAML, JSON_, TOML];
+
+  var C_COMMENT = /\s+[#;].*$/;
+  var ENV_LINE = /^\s*(?:export\s+)?([A-Za-z_][\w.-]*)\s*=\s*(.*)$/;
+  var YAML_LINE = /^(\s*)(?:-\s+)?(["']?[\w.-]+["']?)\s*:(?:\s+(.*))?$/;
+  var YAML_ITEM = /^(\s*)-\s+(.*)$/;
+  var TOML_LINE = /^\s*(["']?[\w.-]+["']?)\s*=\s*(.*)$/;
+  var JSON_PAIR = /"((?:[^"\\]|\\.)*)"\s*:\s*("(?:[^"\\]|\\.)*"|\[[^\[\]{}]*\])/g;
+  var QUOTED = /"((?:[^"\\]|\\.)*)"|'([^']*)'/g;
+
+  function stripQuotes(s) { return s.replace(/^["']+|["']+$/g, ""); }
+
+  function isModelKey(key) {
+    key = stripQuotes(key.trim());
+    key = key.replace(/([a-z0-9])([A-Z])/g, "$1_$2"); // camelCase -> snake_case
+    key = key.replace(/[-.\s]/g, "_").toLowerCase();
+    return /(^|_)models?(_?name|_?id)?$/.test(key);
+  }
+
+  function unquote(v) {
+    v = v.trim();
+    if (v.length >= 2 && v[0] === v[v.length - 1] && (v[0] === '"' || v[0] === "'")) return v.slice(1, -1);
+    return v.replace(C_COMMENT, "").trim();
+  }
+
+  function inlineList(v) {
+    v = v.trim().replace(C_COMMENT, "").trim();
+    if (!(v.charAt(0) === "[" && v.charAt(v.length - 1) === "]")) return null;
+    return v.slice(1, -1).split(",").filter(function (x) { return x.trim(); }).map(unquote);
+  }
+
+  function quotedValues(s) {
+    return findAll(QUOTED, s).map(function (q) { return { index: q.index, value: q[1] !== undefined ? q[1] : (q[2] || "") }; });
+  }
+
+  // (open, close) offsets of every {...} object in a JSON text, sorted by open.
+  function jsonObjects(text) {
+    var spans = [], stack = [], inStr = false;
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      if (inStr) {
+        if (ch === "\\") i++;
+        else if (ch === '"') inStr = false;
+      } else if (ch === '"') inStr = true;
+      else if (ch === "{") stack.push(i);
+      else if (ch === "}" && stack.length) spans.push([stack.pop(), i + 1]);
+    }
+    return spans.sort(function (a, b) { return a[0] - b[0]; });
+  }
+
+  function enclosing(objects, offset) {
+    // last object whose open is <= offset (bisect_right), then walk back
+    var lo = 0, hi = objects.length;
+    while (lo < hi) { var mid = (lo + hi) >> 1; if (offset < objects[mid][0]) hi = mid; else lo = mid + 1; }
+    for (var k = lo - 1; k >= 0; k--) if (objects[k][1] > offset) return objects[k];
+    return null;
+  }
+
+  // Every key/value shape in a config file: [{ line, key, value, group }].
+  function configPairs(text, kind) {
+    var out = [];
+    function add(line, key, value, group) { out.push({ line: line, key: key, value: value, group: String(group) }); }
+
+    if (kind === JSON_) {
+      var starts = [0];
+      for (var c = 0; c < text.length; c++) if (text[c] === "\n") starts.push(c + 1);
+      var lineAt = function (off) {
+        var lo = 0, hi = starts.length;
+        while (lo < hi) { var mid = (lo + hi) >> 1; if (off < starts[mid]) hi = mid; else lo = mid + 1; }
+        return lo;
+      };
+      var objects = jsonObjects(text);
+      findAll(JSON_PAIR, text).forEach(function (m) {
+        var obj = enclosing(objects, m.index);
+        if (obj && PRICE_RE.test(text.slice(obj[0], obj[1]))) return; // a price or usage record
+        var raw = m[2], valueAt = m.index + m[0].lastIndexOf(raw);
+        if (raw.charAt(0) === "[") {
+          quotedValues(raw).forEach(function (q) { add(lineAt(valueAt + q.index), m[1], q.value, m.index); });
+        } else {
+          add(lineAt(valueAt), m[1], raw.slice(1, -1), m.index);
+        }
+      });
+      return out;
+    }
+
+    var lines = text.split("\n");
+    var block = null; // [key, indent, group]: a key whose value is a list on the lines below
+    var prevName = null; // "name: X" followed by "value: ..."
+    lines.forEach(function (line, idx) {
+      var n = idx + 1, stripped = line.trim(), m, items;
+      if (!stripped || /^(#|;|\/\/)/.test(stripped)) return;
+      if (kind === ENV) {
+        m = ENV_LINE.exec(line);
+        if (m) add(n, m[1], unquote(m[2]), n);
+        return;
+      }
+      if (kind === TOML) {
+        if (block !== null) { // inside a multi-line array
+          quotedValues(line).forEach(function (q) { add(n, block[0], q.value, block[2]); });
+          if (line.replace(C_COMMENT, "").indexOf("]") !== -1) block = null;
+          return;
+        }
+        m = TOML_LINE.exec(line);
+        if (!m) return;
+        var tkey = stripQuotes(m[1]), v = m[2].trim();
+        if (v.charAt(0) === "[" && v.replace(C_COMMENT, "").indexOf("]") === -1) {
+          block = [tkey, 0, n];
+          quotedValues(v).forEach(function (q) { add(n, tkey, q.value, n); });
+          return;
+        }
+        items = inlineList(v);
+        (items !== null ? items : [unquote(v)]).forEach(function (it) { add(n, tkey, it, n); });
+        return;
+      }
+      // YAML
+      var indent = line.length - line.replace(/^\s+/, "").length;
+      var item = YAML_ITEM.exec(line);
+      if (block !== null && (indent < block[1] || (indent === block[1] && !item))) block = null;
+      if (item && !YAML_LINE.test(line)) {
+        var env = ENV_LINE.exec(item[2]); // docker compose: - OPENAI_MODEL=gpt-4o
+        if (env) add(n, env[1], unquote(env[2]), n);
+        else if (block !== null) add(n, block[0], unquote(item[2]), block[2]);
+        return;
+      }
+      m = YAML_LINE.exec(line);
+      if (!m) return;
+      var key = stripQuotes(m[2]), value = (m[3] || "").trim();
+      if (!value || /^[#|>]/.test(value)) { block = [key, indent, n]; return; }
+      if (key === "name") { prevName = unquote(value); return; }
+      if (key === "value" && prevName) { add(n, prevName, unquote(value), n); prevName = null; return; }
+      prevName = null;
+      items = inlineList(value);
+      (items !== null ? items : [unquote(value)]).forEach(function (it) { add(n, key, it, n); });
+    });
+    return out;
+  }
+
+  function checkConfig(text, kind) {
+    var lines = text.split("\n");
+    var pairs = configPairs(text, kind).filter(function (p) { return isModelKey(p.key); });
+    var names = {}, catalogs = {};
+    pairs.forEach(function (p) {
+      if (ANY_MODEL_RE.test(p.value)) (names[p.group] = names[p.group] || {})[p.value] = true;
+    });
+    Object.keys(names).forEach(function (g) { if (Object.keys(names[g]).length >= CATALOG_MIN) catalogs[g] = true; });
+    var out = [], seen = {};
+    pairs.forEach(function (p) {
+      if (!p.value || /\s/.test(p.value)) return;
+      if (PRICE_RE.test(p.line > 0 && p.line <= lines.length ? lines[p.line - 1] : "")) return;
+      retiringIds(p.value).forEach(function (m) {
+        var k = p.line + "|" + m.id;
+        if (seen[k]) return;
+        seen[k] = true;
+        var f = finding(p.line, RULES.MODEL_ID, modelMessage(m.id) + ' (Config key "' + p.key + '".)',
+          "Set " + p.key + ' to "' + REPLACEMENT + '".');
+        out.push(catalogs[p.group] ? lowerAsCatalog(f) : f);
+      });
+    });
+    return out;
+  }
+
   // ---------------------------------------------------------------- scanner.py
   var IGNORE_MARK = "luna-check: ignore";
 
   function check(text, lang) {
-    if ([PY, JS, GO].indexOf(lang) === -1) throw new Error("Unknown language: " + lang);
-    var lx = lex(text, lang);
-    var found = runAll(lx).filter(function (f) { return lx.lineText(f.line).indexOf(IGNORE_MARK) === -1; });
+    var found, lines;
+    if (CONFIG_KINDS.indexOf(lang) !== -1) {
+      text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      lines = text.split("\n");
+      found = checkConfig(text, lang).filter(function (f) { return lines[f.line - 1].indexOf(IGNORE_MARK) === -1; });
+    } else if ([PY, JS, GO].indexOf(lang) !== -1) {
+      var lx = lex(text, lang);
+      found = runAll(lx).filter(function (f) { return lx.lineText(f.line).indexOf(IGNORE_MARK) === -1; });
+    } else {
+      throw new Error("Unknown language: " + lang);
+    }
     found.sort(function (a, b) { return a.line - b.line || (a.rule < b.rule ? -1 : a.rule > b.rule ? 1 : 0); });
     return found;
   }
 
-  // Best guess at the language of pasted code.
+  // Best guess at the language of pasted code or config.
   function detectLanguage(text) {
+    var t = text.trim();
+    if (/^[\[{]/.test(t)) {
+      try { JSON.parse(t); return JSON_; } catch (e) { /* not JSON */ }
+    }
+    var lines = t.split(/\r?\n/).filter(function (l) { return l.trim() && !/^\s*#/.test(l); });
+    if (lines.length && lines.every(function (l) { return /^\s*(export\s+)?[A-Za-z_][\w.-]*=/.test(l); })) return ENV;
+    var section = /^\s*\[[\w."' -]+\]\s*$/;
+    if (lines.some(function (l) { return section.test(l); }) && lines.every(function (l) {
+      return section.test(l) || /^\s*["']?[\w.-]+["']?\s*=\s*\S/.test(l) || /^\s*["'\]]/.test(l);
+    })) return TOML;
+    if (lines.length && lines.every(function (l) {
+      return /^\s*(-\s+)?["']?[\w.-]+["']?\s*:(\s|$)/.test(l) || /^\s*-\s+\S/.test(l) || /^\s+\S/.test(l);
+    }) && YAML_LINE.test(lines[0]) && !/[;{}()]\s*$/m.test(t)) return YAML;
     if (/^\s*package\s+\w+\s*$/m.test(text) || /\bfunc\s+(\([^)]*\)\s*)?\w+\s*\(/.test(text) || /\w+\s*:=\s*/.test(text)) return GO;
     if (/^\s*(def|class)\s+\w+.*:\s*$/m.test(text) || /^\s*(from\s+[\w.]+\s+import|import\s+[\w.]+\s*$)/m.test(text) ||
         /^\s*(if|for|while|try|except|with|elif|else)\b.*:\s*$/m.test(text)) return PY;
@@ -473,5 +718,5 @@
     return PY;
   }
 
-  root.LunaCheck = { check: check, detectLanguage: detectLanguage, version: "0.2.0" };
+  root.LunaCheck = { check: check, detectLanguage: detectLanguage, version: "0.3.0" };
 })(typeof window !== "undefined" ? window : this);

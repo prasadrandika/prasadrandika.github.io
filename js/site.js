@@ -110,7 +110,7 @@
     var note = document.getElementById("example-note");
     var out = document.getElementById("results");
     var exampleText = null;
-    var LANG_NAME = { python: "Python", javascript: "JavaScript / TypeScript", go: "Go" };
+    var LANG_NAME = { python: "Python", javascript: "JavaScript / TypeScript", go: "Go", env: ".env", yaml: "YAML", json: "JSON", toml: "TOML" };
     var MAX = 300000;
 
     function render() {
@@ -165,7 +165,7 @@
         html += '<div class="res-line' + (hit ? " hit" : "") + '"><span class="no">' + ln + '</span><span class="tx">' +
           esc(srcLines[ln - 1]) + "</span></div>";
         if (hit) hit.forEach(function (f) {
-          html += '<div class="res-note"><span class="t-high">' + f.severity.toUpperCase() + '</span><span class="rid">' + f.rule +
+          html += '<div class="res-note"><span class="t-' + (f.severity === "low" ? "low" : "high") + '">' + f.severity.toUpperCase() + '</span><span class="rid">' + f.rule +
             "</span><b>" + esc(f.title) + "</b><p>" + esc(f.message) + '</p><p class="fx"><b>Fix:</b> ' + esc(f.fix) +
             '</p><a href="' + esc(f.source) + '">Source</a></div>';
         });

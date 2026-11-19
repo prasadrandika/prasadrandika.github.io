@@ -172,7 +172,8 @@
   .res-line.hit { background: #FBE4D6; }
   .res-line.hit .no { background: #FBE4D6; color: #8E3B2B; font-weight: 600; }
   .res-note { margin: 2px 12px 8px 3.4rem; padding: 10px 14px; background: #fff; border: 1px solid var(--peach); border-left: 3px solid #B5543B; border-radius: 10px; font-family: var(--sans); font-size: .86rem; line-height: 1.55; white-space: normal; max-width: 44rem; position: sticky; left: 3.4rem; }
-  .res-note .t-high { font-family: var(--mono); font-size: .72rem; }
+  .t-low { color: #5E584F; background: #E9E2D6; border-radius: 4px; padding: 0 5px; font-weight: 600; }
+  .res-note .t-high, .res-note .t-low { font-family: var(--mono); font-size: .72rem; }
   .res-note .rid { font-family: var(--mono); color: var(--sage-ink); font-weight: 600; margin: 0 6px; font-size: .8rem; }
   .res-note p { margin: 4px 0 0; color: var(--ink-2); }
   .res-note .fx { color: var(--ink); }
@@ -449,7 +450,7 @@
 
 <section id="check">
   <h2>Check your code</h2>
-  <p class="intro">Paste Python, JavaScript/TypeScript or Go code and click Check. It runs the same 4 rules as luna-check 0.2.0, ported to JavaScript.</p>
+  <p class="intro">Paste Python, JavaScript/TypeScript or Go code, or a config file (.env, YAML, JSON or TOML), and click Check. It runs the same 4 rules as luna-check 0.3.0, ported to JavaScript.</p>
   <div class="checker card">
     <div class="checker-bar">
       <label class="lang">Language
@@ -458,6 +459,10 @@
           <option value="python">Python</option>
           <option value="javascript">JavaScript / TypeScript</option>
           <option value="go">Go</option>
+          <option value="env">.env</option>
+          <option value="yaml">YAML</option>
+          <option value="json">JSON</option>
+          <option value="toml">TOML</option>
         </select>
       </label>
       <button type="button" class="ghost" id="example">Try an example</button>
@@ -478,7 +483,7 @@
   <p class="intro"><a href="https://github.com/prasadrandika/luna-check">luna-check</a> is free and open source (MIT). Run it on your own project to see what will break. It needs Python 3.9 or newer and Git.</p>
   <div class="code cmd">
     <div class="code-head"><span>terminal</span><button type="button" class="copy" data-copy="cmds">Copy</button></div>
-<pre><code id="cmds"><span class="ln">pip install git+https://github.com/prasadrandika/luna-check@v0.2.0</span><span class="ln">luna-check path/to/your/project</span></code></pre>
+<pre><code id="cmds"><span class="ln">pip install git+https://github.com/prasadrandika/luna-check@v0.3.0</span><span class="ln">luna-check path/to/your/project</span></code></pre>
   </div>
   <p class="small-note">If it finds something and you'd like help fixing it, send me the output.</p>
 </section>
@@ -645,7 +650,7 @@
     });
   });
 </script>
-<script src="js/luna-check.js?v=2" defer></script>
-<script src="js/site.js?v=2" defer></script>
+<script src="js/luna-check.js?v=3" defer></script>
+<script src="js/site.js?v=3" defer></script>
 </body>
 </html>
