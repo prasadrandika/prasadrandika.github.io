@@ -4,6 +4,33 @@
   var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var hasIO = "IntersectionObserver" in window;
 
+  // Run fn once when el comes into view. Uses IntersectionObserver, with a
+  // plain scroll check as a safety net so nothing can stay hidden.
+  function whenVisible(el, fn, margin) {
+    var done = false;
+    margin = margin || 0;
+    function fire() { if (!done) { done = true; cleanup(); fn(); } }
+    function inView() {
+      var r = el.getBoundingClientRect();
+      return r.top < window.innerHeight - margin && r.bottom > margin;
+    }
+    var t = null;
+    function onScroll() {
+      if (t) return;
+      t = setTimeout(function () { t = null; if (inView()) fire(); }, 120);
+    }
+    var io = hasIO ? new IntersectionObserver(function (es) { if (es[0].isIntersecting) fire(); }, { rootMargin: "0px 0px -" + margin + "px 0px" }) : null;
+    function cleanup() {
+      if (io) io.disconnect();
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    }
+    if (io) io.observe(el);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    onScroll();
+  }
+
   function mailto(subject) {
     return "mailto:" + ["prasadrandika618", "gmail.com"].join("@") + "?subject=" + encodeURIComponent(subject);
   }
@@ -15,18 +42,13 @@
   // Fade sections in as they scroll into view.
   // ------------------------------------------------------------------
   (function () {
-    if (reduce || !hasIO) return;
+    if (reduce) return;
     var els = document.querySelectorAll("section, .deadline");
-    var io = new IntersectionObserver(function (entries) {
-      entries.forEach(function (e) {
-        if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
-      });
-    }, { rootMargin: "0px 0px -8% 0px", threshold: 0.06 });
     Array.prototype.forEach.call(els, function (el) {
       var r = el.getBoundingClientRect();
       if (r.top < window.innerHeight) return; // already visible: leave it alone
       el.classList.add("reveal");
-      io.observe(el);
+      whenVisible(el, function () { el.classList.add("in"); }, 40);
     });
   })();
 
@@ -73,14 +95,7 @@
 
     replay.addEventListener("click", play);
     reset();
-    if (hasIO) {
-      var io = new IntersectionObserver(function (entries) {
-        if (entries[0].isIntersecting) { io.disconnect(); play(); }
-      }, { threshold: 0.35 });
-      io.observe(term);
-    } else {
-      play();
-    }
+    whenVisible(term, play, 120);
   })();
 
   // ------------------------------------------------------------------
