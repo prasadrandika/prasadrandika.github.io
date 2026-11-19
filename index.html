@@ -9,8 +9,18 @@
 <meta property="og:description" content="Migrate off GPT-4o and GPT-4.1 before OpenAI's January 14, 2027 shutdown. Fixed prices, pay after delivery.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://prasadrandika.github.io/">
+<meta property="og:site_name" content="Randika Prasad">
+<meta property="og:image" content="https://prasadrandika.github.io/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:alt" content="Hi, I'm Randika. I keep your AI features working. OpenAI retires GPT-4o and GPT-4.1 on Jan 14, 2027.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://prasadrandika.github.io/">
 <meta name="theme-color" content="#FBF7F0">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%234F6F55'/%3E%3Ctext x='16' y='22.5' font-family='Georgia,serif' font-size='18' font-weight='600' fill='%23FBF7F0' text-anchor='middle'%3ER%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -143,8 +153,54 @@
   footer a { color: var(--ink-3); }
   footer .credit { flex-basis: 100%; font-size: .8rem; }
 
+  /* countdown */
+  .countdown { margin: -4px 0 14px; }
+  .countdown span { display: inline-block; font-family: var(--serif); font-weight: 600; font-size: 1.15rem; color: #5A3520; background: var(--card); border: 1px solid var(--peach); border-radius: 999px; padding: 4px 16px; }
+
+  /* turnaround */
+  .plan .time, .other .time { margin: 14px 0 0; padding-top: 12px; border-top: 1px dashed var(--line); font-family: var(--mono); font-size: .8rem; color: var(--sage-ink); }
+  .other .time { border-top: 0; padding-top: 0; margin-top: 6px; }
+
+  /* what you get */
+  .get { display: grid; grid-template-columns: 1fr 19rem; gap: 20px; align-items: start; }
+  .get-list { display: grid; gap: 4px; }
+  .get-item { display: grid; grid-template-columns: 6.5rem 1fr; gap: 16px; padding: 14px 0; border-top: 1px solid var(--line); }
+  .get-item:first-child { border-top: 0; padding-top: 0; }
+  .get-item p { margin: 0; color: var(--ink-2); font-size: .97rem; }
+  .get-tag { font-family: var(--serif); font-weight: 600; font-size: 1.05rem; }
+  .sample { display: flex; flex-direction: column; gap: 4px; text-decoration: none; color: var(--ink); background: var(--sage-soft); border-color: #D3DFD1; box-shadow: none; }
+  .sample:hover { border-color: var(--sage); }
+  .sample-label { font-size: .78rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--sage-ink); }
+  .sample-title { font-family: var(--mono); font-size: 1.2rem; font-weight: 500; margin-top: 6px; }
+  .sample-sub { font-family: var(--mono); font-size: .8rem; color: var(--ink-2); }
+  .sample-body { font-size: .93rem; color: var(--ink-2); margin: 10px 0 12px; }
+  .sample-link { color: var(--sage-ink); font-weight: 600; font-size: .95rem; }
+
+  /* try it */
+  .cmd .code-head { align-items: center; padding-top: 8px; padding-bottom: 8px; }
+  .copy { font: 500 .78rem var(--sans); color: var(--sage-ink); background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 5px 14px; cursor: pointer; }
+  .copy:hover { border-color: var(--sage); }
+  .cmd .ln { color: var(--ink); }
+  .cmd .ln::before { content: "$ "; color: var(--sage-ink); user-select: none; }
+
+  /* faq */
+  .faq { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); }
+  .faq details { border-top: 1px solid var(--line); padding: 0 22px; }
+  .faq details:first-child { border-top: 0; }
+  .faq summary { cursor: pointer; list-style: none; padding: 18px 28px 18px 0; position: relative; font-family: var(--serif); font-weight: 600; font-size: 1.12rem; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: "+"; position: absolute; right: 0; top: 50%; transform: translateY(-50%); font-family: var(--sans); font-weight: 400; font-size: 1.4rem; color: var(--sage-ink); }
+  .faq details[open] summary::after { content: "–"; }
+  .faq details p { margin: -4px 0 18px; color: var(--ink-2); max-width: 40rem; }
+
+  /* about */
+  .about { max-width: 42rem; box-shadow: none; }
+  .about p { color: var(--ink-2); }
+  .about-links { margin: 0; display: flex; gap: 20px; font-weight: 600; }
+
   /* tablets */
   @media (max-width: 860px) {
+    .get { grid-template-columns: 1fr; }
     .hero { grid-template-columns: 1fr 17rem; gap: 28px; }
     .breaks { grid-template-columns: 1fr; }
     .steps { grid-template-columns: 1fr 1fr; }
@@ -165,6 +221,8 @@
     .card { padding: 22px 20px; }
     .other { grid-template-columns: 1fr; }
     .other .price { text-align: left; grid-row: 2; }
+    .get-item { grid-template-columns: 1fr; gap: 4px; }
+    .faq details { padding: 0 18px; }
     .work li { padding: 16px 18px; grid-template-columns: 1fr; }
     .work .found { grid-column: 1; grid-row: 2; }
     .work .meta { grid-column: 1; grid-row: 3; justify-content: flex-start; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
@@ -184,6 +242,8 @@
   <nav>
     <a href="#services">Services</a>
     <a href="#work">Work</a>
+    <a href="#faq">FAQ</a>
+    <a href="#about">About</a>
     <a href="#contact">Contact</a>
   </nav>
 </header>
@@ -200,6 +260,7 @@
 <div class="deadline" id="deadline">
   <span class="when">Heads up</span>
   <h2>OpenAI retires GPT&#8209;4o and GPT&#8209;4.1 on January&nbsp;14,&nbsp;2027.</h2>
+  <p class="countdown" id="countdown" hidden><span id="days"></span></p>
   <p>After that date, any app that still calls these models in the API will fail. I can help you migrate before then: I find every place your code depends on them, move it to the replacement, and check that it still works.</p>
   <ul class="tags" aria-label="Models being retired">
     <li>gpt-4o</li><li>gpt-4o-mini</li><li>gpt-4.1</li><li>gpt-4.1-mini</li>
@@ -216,16 +277,19 @@
       <h3>Audit</h3>
       <div class="price">$49</div>
       <p>I find every place your code depends on a retiring model and send you a report.</p>
+      <p class="time">1–2 days</p>
     </div>
     <div class="card plan popular">
       <h3>Migration</h3>
       <div class="price">$149</div>
       <p>The audit, plus I update the code and send you a pull request with a simple report.</p>
+      <p class="time">2–4 days</p>
     </div>
     <div class="card plan">
       <h3>Migration + testing</h3>
       <div class="price">$299</div>
       <p>Everything in Migration, plus I compare old vs new model outputs using your API key.</p>
+      <p class="time">3–5 days</p>
     </div>
   </div>
 
@@ -236,6 +300,7 @@
         <h3>AI app bug fixes</h3>
         <p>I fix bugs in apps that use the OpenAI, Claude or Gemini APIs, like failing tool calls, API errors and broken AI-built apps.</p>
         <div class="langs">Python · JavaScript/TypeScript · Go</div>
+        <p class="time">Price and time quoted per issue</p>
       </div>
       <div class="price"><small>from </small>$49</div>
     </div>
@@ -246,6 +311,25 @@
       </div>
       <div class="price">$99<small>/month</small></div>
     </div>
+  </div>
+</section>
+
+<section id="deliverables">
+  <h2>What you get</h2>
+  <p class="intro">Plain-language results you can read, check and keep.</p>
+  <div class="get">
+    <div class="get-list">
+      <div class="get-item"><span class="get-tag">Audit</span><p>A report listing every file and line that depends on a retiring model, plus the hidden problems (tiktoken, <code>temperature</code>, tool calls) and what to change.</p></div>
+      <div class="get-item"><span class="get-tag">Migration</span><p>A pull request with the code changes and a <code>MIGRATION.md</code> that explains what changed, why, every file and line touched, and what was left alone on purpose.</p></div>
+      <div class="get-item"><span class="get-tag">Testing</span><p>Side-by-side results from the old and new model, run with your API key, so you can see the difference before you merge.</p></div>
+    </div>
+    <a class="sample card" href="https://github.com/prasadrandika/Basic-Rag/blob/migration-notes/MIGRATION.md">
+      <span class="sample-label">Real sample report</span>
+      <span class="sample-title">MIGRATION.md</span>
+      <span class="sample-sub">Basic-Rag: gpt-4o-mini → gpt-6-luna</span>
+      <span class="sample-body">From my Basic-Rag fork, migration-notes branch. Shows the format I use for every migration.</span>
+      <span class="sample-link">Read it on GitHub →</span>
+    </a>
   </div>
 </section>
 
@@ -279,6 +363,16 @@
     <a href="images/luna-check-output.webp"><picture><source media="(max-width: 640px)" srcset="images/luna-check-output-mobile.webp" width="1100" height="1474"><img src="images/luna-check-output.webp" width="2196" height="1272" loading="lazy" decoding="async" alt="Terminal output of luna-check 0.2.0 on youtube_transcription_api: 2 HIGH findings in app.py. Line 43, LC002: tiktoken.encoding_for_model() raises KeyError for gpt-6-luna. Line 73, LC001: model gpt-4o-mini shuts down on Jan 14, 2027."></picture></a>
     <figcaption>Real output from <a href="https://github.com/prasadrandika/luna-check">luna-check</a> 0.2.0, run on the original code of youtube_transcription_api, before my fix. It finds both problems the fix above solves.</figcaption>
   </figure>
+</section>
+
+<section id="try">
+  <h2>Try it yourself</h2>
+  <p class="intro"><a href="https://github.com/prasadrandika/luna-check">luna-check</a> is free and open source (MIT). Run it on your own project to see what will break. It needs Python 3.9 or newer and Git.</p>
+  <div class="code cmd">
+    <div class="code-head"><span>terminal</span><button type="button" class="copy" data-copy="cmds">Copy</button></div>
+<pre><code id="cmds"><span class="ln">pip install git+https://github.com/prasadrandika/luna-check@v0.2.0</span><span class="ln">luna-check path/to/your/project</span></code></pre>
+  </div>
+  <p class="small-note">If it finds something and you'd like help fixing it, send me the output.</p>
 </section>
 
 <section id="work">
@@ -344,6 +438,40 @@
   </ol>
 </section>
 
+<section id="faq">
+  <h2>Questions</h2>
+  <div class="faq">
+    <details open>
+      <summary>Is my code safe?</summary>
+      <p>Yes. I only need read access to your repository, or a zip of the code. I never store your API keys, and I'm happy to sign an NDA.</p>
+    </details>
+    <details>
+      <summary>What access do you need?</summary>
+      <p>Read access to the repository (or a zip) is enough for an audit, a migration or a bug fix. For Migration + testing, I also run the old and new model with your API key so I can compare outputs.</p>
+    </details>
+    <details>
+      <summary>What if the fix doesn't work?</summary>
+      <p>I fix it at no extra cost.</p>
+    </details>
+    <details>
+      <summary>How do I pay?</summary>
+      <p>PayPal or Payoneer, after delivery.</p>
+    </details>
+    <details>
+      <summary>What timezone are you in?</summary>
+      <p>Sri Lanka (UTC+5:30). I reply within 24 hours.</p>
+    </details>
+  </div>
+</section>
+
+<section id="about">
+  <h2>About me</h2>
+  <div class="about card">
+    <p>I'm Randika Prasad, an independent developer in Sri Lanka. I focus on one thing: keeping AI features working when models, APIs and libraries change underneath them. I write about what I find and build small tools like luna-check from it.</p>
+    <p class="about-links"><a href="https://github.com/prasadrandika">GitHub</a><a href="https://dev.to/prasadrandika">dev.to</a></p>
+  </div>
+</section>
+
 <section id="contact" class="contact">
   <h2>Let's keep your app working.</h2>
   <p>Send me a short note about your stack. I prefer email or chat over calls, and I'll get back to you with a quick check and a fixed price.</p>
@@ -366,6 +494,48 @@
     var href = "mailto:" + a + "?subject=" + encodeURIComponent("Help with my AI app");
     document.querySelectorAll(".email-link").forEach(function (el) { el.href = href; });
   })();
+
+  // Days left until the shutdown date, counted in the visitor's browser.
+  (function () {
+    var box = document.getElementById("countdown");
+    var shutdown = Date.UTC(2027, 0, 14);
+    var days = Math.ceil((shutdown - Date.now()) / 86400000);
+    var text;
+    if (days > 1) text = days + " days left";
+    else if (days === 1) text = "1 day left";
+    else if (days === 0) text = "Shutdown day";
+    else return;
+    document.getElementById("days").textContent = text;
+    box.hidden = false;
+  })();
+
+  // Copy buttons.
+  document.querySelectorAll(".copy").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var lines = Array.prototype.map.call(document.querySelectorAll("#" + btn.dataset.copy + " .ln"), function (l) { return l.textContent; });
+      var text = lines.join("\n");
+      var label = function (t) { btn.textContent = t; setTimeout(function () { btn.textContent = "Copy"; }, 2000); };
+      var fallback = function () {
+        var ta = document.createElement("textarea");
+        ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+        document.body.appendChild(ta); ta.select();
+        var ok = false;
+        try { ok = document.execCommand("copy"); } catch (e) {}
+        document.body.removeChild(ta);
+        if (ok) { label("Copied"); return; }
+        // Last resort: select the commands so the visitor can press Ctrl+C.
+        var range = document.createRange();
+        range.selectNodeContents(document.getElementById(btn.dataset.copy));
+        var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+        label("Press Ctrl+C");
+      };
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(function () { label("Copied"); }, fallback);
+      } else {
+        fallback();
+      }
+    });
+  });
 </script>
 </body>
 </html>
