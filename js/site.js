@@ -132,7 +132,7 @@
       var html = "";
 
       if (!findings.length) {
-        html += '<div class="res-summary clean"><p><strong>No findings.</strong> None of the 4 rules matched in ' +
+        html += '<div class="res-summary clean"><p><strong>No findings.</strong> None of the rules matched in ' +
           srcLines.length + " line" + (srcLines.length === 1 ? "" : "s") + detected + ".</p></div>";
         out.innerHTML = html;
         return;

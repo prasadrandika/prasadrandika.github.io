@@ -5,17 +5,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Randika Prasad: AI model migrations</title>
-<meta name="description" content="Hi, I'm Randika. I keep your AI features working: model migrations, bug fixes and maintenance. Migrate off GPT-4o and GPT-4.1 before OpenAI's January 14, 2027 shutdown.">
+<meta name="description" content="Hi, I'm Randika. I keep your AI features working on OpenAI, Claude, Gemini, Azure OpenAI, Vertex AI and Amazon Bedrock: model migrations before retirement dates, bug fixes and maintenance.">
 <meta property="og:title" content="Randika Prasad: I keep your AI features working">
-<meta property="og:description" content="Migrate off GPT-4o and GPT-4.1 before OpenAI's January 14, 2027 shutdown. Fixed prices, pay after delivery.">
+<meta property="og:description" content="Model migrations before retirement dates on OpenAI, Claude, Gemini and more. Fixed prices, pay after delivery.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://prasadrandika.github.io/">
 <meta property="og:site_name" content="Randika Prasad">
-<meta property="og:image" content="https://prasadrandika.github.io/og-image.jpg">
+<meta property="og:image" content="https://prasadrandika.github.io/og-image.jpg?v=2">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:type" content="image/jpeg">
-<meta property="og:image:alt" content="Hi, I'm Randika. I keep your AI features working. OpenAI retires GPT-4o and GPT-4.1 on Jan 14, 2027.">
+<meta property="og:image:alt" content="Hi, I'm Randika. I keep your AI features working. Upcoming model retirements: Claude Sonnet 4.5 on Nov 30, Gemini 2.5 Pro and Flash routed to newer models on Dec 1, GPT-4o and GPT-4.1 shut down on Jan 14.">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="canonical" href="https://prasadrandika.github.io/">
 <meta name="theme-color" content="#FBF7F0">
@@ -233,6 +233,14 @@
 
   /* countdown */
   .countdown { margin: -4px 0 14px; }
+  .retirements { list-style: none; padding: 0; margin: 4px 0 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .ret { background: var(--card); border: 1px solid var(--peach); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; }
+  .ret .ret-date { font-family: var(--mono); font-size: .8rem; color: #5A3520; margin: 0 0 8px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; max-width: none; }
+  .ret .ret-left { font-family: var(--sans, inherit); background: var(--peach); border-radius: 999px; padding: 1px 10px; }
+  .ret h3 { font-size: 1.08rem; margin: 0 0 8px; line-height: 1.3; }
+  .ret p { font-size: .93rem; margin: 0 0 12px; max-width: none; }
+  .ret a { margin-top: auto; font-size: .88rem; }
+  .ret.past { opacity: .62; }
   .countdown span { display: inline-block; font-family: var(--serif); font-weight: 600; font-size: 1.15rem; color: #5A3520; background: var(--card); border: 1px solid var(--peach); border-radius: 999px; padding: 4px 16px; }
 
   /* turnaround */
@@ -297,6 +305,7 @@
     .hero-photo { aspect-ratio: 16 / 10; object-position: 30% 50%; }
     section { padding-top: 56px; }
     .deadline { padding: 24px 20px; }
+    .retirements { grid-template-columns: 1fr; }
     .plans { grid-template-columns: 1fr; gap: 12px; }
     .card { padding: 22px 20px; }
     .other { grid-template-columns: 1fr; }
@@ -332,19 +341,35 @@
   <div class="hero-text">
     <p class="hi">Hi, I'm Randika.</p>
     <h1>I keep your AI features working.</h1>
-    <p class="lead">I'm an independent developer who handles model migrations, bug fixes and ongoing maintenance for apps built on the OpenAI, Claude and Gemini APIs.</p>
+    <p class="lead">I'm an independent developer who handles model migrations, bug fixes and ongoing maintenance for apps built on any major AI provider: OpenAI, Claude, Gemini, Azure OpenAI, Vertex AI and Amazon Bedrock. When a provider retires a model, I find what breaks and move you to the replacement.</p>
   </div>
   <img class="hero-photo" src="images/hero-desk.webp" width="1000" height="780" alt="A laptop showing code on a wooden desk, next to a jade plant and a coffee cup, in warm natural light" fetchpriority="high" decoding="async">
 </div>
 
 <div class="deadline" id="deadline">
   <span class="when">Heads up</span>
-  <h2>OpenAI retires GPT&#8209;4o and GPT&#8209;4.1 on January&nbsp;14,&nbsp;2027.</h2>
-  <p class="countdown" id="countdown" hidden><span id="days"></span></p>
-  <p>After that date, any app that still calls these models in the API will fail. I can help you migrate before then: I find every place your code depends on them, move it to the replacement, and check that it still works.</p>
-  <ul class="tags" aria-label="Models being retired">
-    <li>gpt-4o</li><li>gpt-4o-mini</li><li>gpt-4.1</li><li>gpt-4.1-mini</li>
-  </ul>
+  <h2>Three model retirements are coming, across three providers.</h2>
+  <ol class="retirements">
+    <li class="ret" data-date="2026-11-30">
+      <p class="ret-date">Nov&nbsp;30,&nbsp;2026 <span class="ret-left" hidden></span></p>
+      <h3>Claude Sonnet 4.5 retires</h3>
+      <p>Anthropic retires <code>claude-sonnet-4-5-20250929</code> (and <code>claude-sonnet-4-5</code>) on the Claude API. After that, requests to it fail. Recommended replacement: <code>claude-sonnet-5-5</code>.</p>
+      <a href="https://platform.claude.com/docs/en/about-claude/model-deprecations">Anthropic: model deprecations</a>
+    </li>
+    <li class="ret" data-date="2026-12-01">
+      <p class="ret-date">Dec&nbsp;1,&nbsp;2026 <span class="ret-left" hidden></span></p>
+      <h3>Gemini 2.5 Pro and Flash are routed to newer models</h3>
+      <p>On the Gemini API, requests to <code>gemini-2.5-pro</code> are routed to <code>gemini-3.8-flash</code>, and requests to <code>gemini-2.5-flash</code> to <code>gemini-3.5-flash-lite</code>, billed at those models' rates. Google says to review the breaking API changes first.</p>
+      <a href="https://ai.google.dev/gemini-api/docs/deprecations">Google: Gemini API deprecations</a>
+    </li>
+    <li class="ret" data-date="2027-01-14">
+      <p class="ret-date">Jan&nbsp;14,&nbsp;2027 <span class="ret-left" hidden></span></p>
+      <h3>GPT&#8209;4o and GPT&#8209;4.1 shut down</h3>
+      <p>OpenAI shuts down GPT&#8209;4o, GPT&#8209;4o&nbsp;mini, GPT&#8209;4.1 and GPT&#8209;4.1&nbsp;mini in the OpenAI API. After that, requests to them fail. Recommended replacement: <code>gpt-6-luna</code>.</p>
+      <a href="https://developers.openai.com/api/docs/deprecations">OpenAI: deprecations</a>
+    </li>
+  </ol>
+  <p>After these dates, code that still names these models fails or quietly runs on a different model. I can help you migrate before then: I find every place your code depends on them, move it to the replacement, and check that it still works.</p>
 </div>
 
 <section id="services">
@@ -450,7 +475,7 @@
 
 <section id="check">
   <h2>Check your code</h2>
-  <p class="intro">Paste Python, JavaScript/TypeScript or Go code, or a config file (.env, YAML, JSON or TOML), and click Check. It runs the same 4 rules as luna-check 0.3.0, ported to JavaScript.</p>
+  <p class="intro">Paste Python, JavaScript/TypeScript or Go code, or a config file (.env, YAML, JSON or TOML), and click Check. It runs the same 6 rules as luna-check 0.4.0, ported to JavaScript, and knows the retired and retiring models of OpenAI, Anthropic, the Gemini API, Vertex AI, Azure OpenAI and Amazon Bedrock.</p>
   <div class="checker card">
     <div class="checker-bar">
       <label class="lang">Language
@@ -475,7 +500,7 @@
     </div>
   </div>
   <div class="results" id="results" aria-live="polite" hidden></div>
-  <p class="small-note">These 4 rules catch the problems I've seen most in real migrations. They're not a full review: a clean result means none of these patterns were found, not that the code is ready.</p>
+  <p class="small-note">These rules catch the problems I've seen most in real migrations. They're not a full review: a clean result means none of these patterns were found, not that the code is ready.</p>
 </section>
 
 <section id="try">
@@ -483,7 +508,7 @@
   <p class="intro"><a href="https://github.com/prasadrandika/luna-check">luna-check</a> is free and open source (MIT). Run it on your own project to see what will break. It needs Python 3.9 or newer and Git.</p>
   <div class="code cmd">
     <div class="code-head"><span>terminal</span><button type="button" class="copy" data-copy="cmds">Copy</button></div>
-<pre><code id="cmds"><span class="ln">pip install git+https://github.com/prasadrandika/luna-check@v0.3.0</span><span class="ln">luna-check path/to/your/project</span></code></pre>
+<pre><code id="cmds"><span class="ln">pip install git+https://github.com/prasadrandika/luna-check@v0.4.0</span><span class="ln">luna-check path/to/your/project</span></code></pre>
   </div>
   <p class="small-note">If it finds something and you'd like help fixing it, send me the output.</p>
 </section>
@@ -608,18 +633,20 @@
     document.querySelectorAll(".email-link").forEach(function (el) { el.href = href; });
   })();
 
-  // Days left until the shutdown date, counted in the visitor's browser.
+  // Days left until each retirement date, counted in the visitor's browser.
   (function () {
-    var box = document.getElementById("countdown");
-    var shutdown = Date.UTC(2027, 0, 14);
-    var days = Math.ceil((shutdown - Date.now()) / 86400000);
-    var text;
-    if (days > 1) text = days + " days left";
-    else if (days === 1) text = "1 day left";
-    else if (days === 0) text = "Shutdown day";
-    else return;
-    document.getElementById("days").textContent = text;
-    box.hidden = false;
+    document.querySelectorAll(".ret[data-date]").forEach(function (item) {
+      var p = item.getAttribute("data-date").split("-");
+      var days = Math.ceil((Date.UTC(+p[0], +p[1] - 1, +p[2]) - Date.now()) / 86400000);
+      var text;
+      if (days > 1) text = days + " days left";
+      else if (days === 1) text = "1 day left";
+      else if (days === 0) text = "Today";
+      else { text = "Passed"; item.classList.add("past"); }
+      var left = item.querySelector(".ret-left");
+      left.textContent = text;
+      left.hidden = false;
+    });
   })();
 
   // Copy buttons.
@@ -650,7 +677,8 @@
     });
   });
 </script>
-<script src="js/luna-check.js?v=3" defer></script>
-<script src="js/site.js?v=3" defer></script>
+<script src="js/luna-models.js?v=4" defer></script>
+<script src="js/luna-check.js?v=4" defer></script>
+<script src="js/site.js?v=4" defer></script>
 </body>
 </html>

@@ -1,13 +1,15 @@
 /*
  * luna-check rules, ported to JavaScript for the browser.
  *
- * A line-by-line port of luna-check 0.3.0 (MIT,
+ * A line-by-line port of luna-check 0.4.0 (MIT,
  * https://github.com/prasadrandika/luna-check): lexer.py, rules.py,
- * checks.py and config.py, plus the "luna-check: ignore" filter and sort
- * order from scanner.py. It runs entirely in the page; nothing is sent anywhere.
+ * models.py, checks.py, api_checks.py and config.py, plus the
+ * "luna-check: ignore" filter and sort order from scanner.py. The model data
+ * comes from js/luna-models.js (window.LUNA_MODELS), an export of luna-check's
+ * data/models.json. It runs entirely in the page; nothing is sent anywhere.
  *
  * Usage: LunaCheck.check(text, "python" | "javascript" | "go" | "env" | "yaml" | "json" | "toml")
- *   -> [{ line, rule, title, severity, message, fix, source, lowReason }]
+ *   -> [{ line, rule, title, severity, message, fix, source, lowReason, short }]
  *
  * Pasted text has no file name, so the LOW rules that depend on the path
  * (seed/demo files, example configs) do not apply here. Model catalogs do.
@@ -28,11 +30,30 @@
   var HIGH = "high", LOW = "low";
   var OLD_ENCODING = "o200k_base";
 
+  var ANTHROPIC_DEPRECATIONS_URL = "https://platform.claude.com/docs/en/about-claude/model-deprecations";
+
   var RULES = {
-    MODEL_ID: { id: "LC001", title: "Model shuts down on " + SHUTDOWN_DATE, source: DEPRECATIONS_URL },
+    MODEL_ID: { id: "LC001", title: "Model is retired or scheduled to shut down", source: DEPRECATIONS_URL },
     TIKTOKEN: { id: "LC002", title: "tiktoken.encoding_for_model() raises KeyError for gpt-6-luna", source: TIKTOKEN_MODEL_URL },
     SAMPLING: { id: "LC003", title: 'Sampling parameter sent while reasoning effort is not "none"', source: GUIDE_URL },
-    CHAT_TOOLS: { id: "LC004", title: 'Function tools on /chat/completions need reasoning_effort "none" on gpt-6-luna', source: LUNA_MODEL_URL }
+    CHAT_TOOLS: { id: "LC004", title: 'Function tools on /chat/completions need reasoning_effort "none" on gpt-6-luna', source: LUNA_MODEL_URL },
+    CLAUDE_SAMPLING: { id: "LC005", title: "Claude API rejects temperature, top_p and top_k", source: ANTHROPIC_DEPRECATIONS_URL },
+    OPENAI_ENDPOINT: { id: "LC006", title: "OpenAI API feature or endpoint is retired or shutting down", source: DEPRECATIONS_URL }
+  };
+
+  // Anthropic's "API parameter deprecations" table (see rules.py).
+  var CLAUDE_SAMPLING_PARAMS = ["temperature", "top_p", "top_k"];
+
+  // OpenAI's feature and endpoint deprecations (see rules.py): [name, shutdown, replacement].
+  var OPENAI_ENDPOINTS = {
+    assistants: ["The Assistants API", "2026-08-26", "Responses API and Conversations API"],
+    prompts: ["The reusable prompt objects feature (/v1/prompts)", "2026-11-30", "prompt content in your application code"],
+    evals: ["The Evals API", "2026-11-30", "Promptfoo (the Evals API becomes read-only)"],
+    audio_translations: ["/v1/audio/translations", "2027-02-26", "/v1/realtime/translations"],
+    videos: ["The Videos API", "2026-09-24", null],
+    realtime_v1: ["The OpenAI-Beta: realtime=v1 header", "2026-05-12", "the GA Realtime API (see the Realtime API migration guide)"],
+    assistants_v1: ["The OpenAI-Beta: assistants=v1 header", "2024-12-18", "Responses API"],
+    legacy: ["This legacy endpoint", "2024-01-04", "the current API endpoints"]
   };
 
   var SNAPSHOTS = {
@@ -48,13 +69,6 @@
 
   var SAMPLING_PARAMS = ["temperature", "top_p", "logprobs", "top_logprobs"];
 
-  function modelMessage(id) {
-    if (Object.prototype.hasOwnProperty.call(DATED_IDS, id)) {
-      return '"' + id + '" shuts down on ' + SHUTDOWN_DATE + '. Replace it with "' + REPLACEMENT + '".';
-    }
-    return '"' + id + '" points to the dated snapshot(s) ' + SNAPSHOTS[id].join(", ") +
-      ", which shut down on " + SHUTDOWN_DATE + '. Replace it with "' + REPLACEMENT + '".';
-  }
 
   // ---------------------------------------------------------------- helpers
   // Python's `ch in "abc"` is also true for the empty string; keep that.
@@ -235,28 +249,225 @@
     return { line: line, rule: rule.id, title: rule.title, severity: HIGH, message: message, fix: fix, source: rule.source, lowReason: "" };
   }
 
+  // ---------------------------------------------------------------- models.py
+  // The data is window.LUNA_MODELS (js/luna-models.js), exported from
+  // luna-check's data/models.json, which is built from each provider's page.
+  var LABEL = {
+    openai: "OpenAI API", anthropic: "Claude API", "gemini-api": "Gemini API",
+    vertex: "Vertex AI", azure: "Azure OpenAI", bedrock: "Amazon Bedrock"
+  };
+  var DEFAULT_OF = { azure: "openai", vertex: "gemini-api" };
+  var NOTE_PLATFORMS = { vertex: true };
+  var CONTEXT = {
+    azure: new RegExp(
+      "\\bAzureOpenAI\\b|\\bAsyncAzureOpenAI\\b|\\bAzureChatOpenAI\\b|\\bAzureOpenAIEmbeddings\\b|" +
+      "\\bazure_endpoint\\b|\\bazureEndpoint\\b|\\bAZURE_OPENAI|\\.openai\\.azure\\.com|\\bazopenai\\b|" +
+      "openai/azure|@azure/openai|\\bazure_deployment\\b|\\bdeployment_name\\b"),
+    vertex: new RegExp(
+      "\\bvertexai\\b|\\bvertex_ai\\b|\\bVertexAI\\b|\\bChatVertexAI\\b|\\baiplatform\\b|" +
+      "GOOGLE_GENAI_USE_VERTEXAI|vertexai\\s*[=:]\\s*(?:True|true)|@google-cloud/vertexai|" +
+      "cloud\\.google\\.com/go/vertexai|aiplatform\\.googleapis\\.com|gemini-enterprise-agent-platform"),
+    "gemini-api": new RegExp(
+      "google\\.generativeai|\\bChatGoogleGenerativeAI\\b|generativelanguage\\.googleapis\\.com|" +
+      "\\bGEMINI_API_KEY\\b|@google/generative-ai|github\\.com/google/generative-ai-go|" +
+      "genai\\.Client\\(\\s*api_key|GoogleGenAI\\(\\s*\\{\\s*apiKey")
+  };
+  var BEDROCK_PREFIX = "(?:(?:us|eu|apac|global|jp|au|ca|us-gov)\\.)?";
+  var MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  function today() {
+    var d = new Date();
+    function pad(n) { return (n < 10 ? "0" : "") + n; }
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+  }
+  function fmt(iso) {
+    var p = iso.split("-");
+    return MONTH[+p[1] - 1] + " " + (+p[2]) + ", " + p[0];
+  }
+  function escapeRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
+  var CATALOG_DATA = null;
+  function modelCatalog() {
+    if (CATALOG_DATA) return CATALOG_DATA;
+    var data = root.LUNA_MODELS || { models: [] };
+    var index = {};
+    data.models.forEach(function (e) {
+      e.ids.forEach(function (i) { (index[i] = index[i] || []).push([e, false]); });
+      (e.aliases || []).forEach(function (a) { (index[a] = index[a] || []).push([e, true]); });
+    });
+    var keys = Object.keys(index).sort(function (a, b) { return b.length - a.length; });
+    var bedrock = keys.filter(function (k) { return index[k].every(function (ea) { return ea[0].platform === "bedrock"; }); });
+    var isB = {};
+    bedrock.forEach(function (k) { isB[k] = true; });
+    var generic = keys.filter(function (k) { return !isB[k]; });
+    var altB = bedrock.map(escapeRe).join("|") || "(?!x)x";
+    var altG = generic.map(escapeRe).join("|") || "(?!x)x";
+    CATALOG_DATA = {
+      index: index,
+      regex: new RegExp("(?<![\\w.-])(?:" + BEDROCK_PREFIX + "(" + altB + ")|(" + altG + "))(?![\\w.-])", "g")
+    };
+    return CATALOG_DATA;
+  }
+
+  // Reuses the one compiled regex (findAll would recompile it for every string).
+  function findModels(s) {
+    var re = modelCatalog().regex, out = [], m;
+    re.lastIndex = 0;
+    while ((m = re.exec(s)) !== null) {
+      out.push({ index: m.index, id: m[1] || m[2] });
+      if (m[0] === "") re.lastIndex++;
+    }
+    return out;
+  }
+
+  function platformsIn(text) {
+    var out = {};
+    Object.keys(CONTEXT).forEach(function (p) { if (CONTEXT[p].test(text)) out[p] = true; });
+    return out;
+  }
+
+  function pick(entries, context) {
+    var byPlatform = {};
+    entries.forEach(function (ea) { (byPlatform[ea[0].platform] = byPlatform[ea[0].platform] || []).push(ea); });
+    var platforms = Object.keys(byPlatform);
+    var inContext = platforms.filter(function (p) { return context[p]; }).sort();
+    var platform;
+    if (context.azure && platforms.every(function (p) { return p === "openai" || p === "azure"; })) {
+      if (!byPlatform.azure) return null;
+      platform = "azure";
+    } else if (inContext.length) {
+      platform = inContext[0];
+    } else {
+      var cands = platforms.filter(function (p) {
+        return p !== "azure" && !(DEFAULT_OF[p] && byPlatform[DEFAULT_OF[p]]);
+      }).sort();
+      if (!cands.length) return null;
+      platform = cands[0];
+    }
+    var notes = inContext.length ? [] : platforms.filter(function (p) { return NOTE_PLATFORMS[p] && p !== platform; });
+    return { platform: platform, chosen: byPlatform[platform], notes: notes.map(function (p) { return byPlatform[p]; }) };
+  }
+
+  function latest(entries) {
+    return entries.reduce(function (a, b) { return (b[0].shutdown || "") > (a[0].shutdown || "") ? b : a; });
+  }
+
+  function regionsText(groups, now) {
+    return groups.map(function (g) {
+      var where = g.regions.length <= 4 ? g.regions.join(", ") : g.regions.length + " regions";
+      var verb = g.date < now ? "reached end of life on" : "reaches end of life on";
+      return verb + " " + fmt(g.date) + " in " + where;
+    }).join("; ");
+  }
+
+  function report(severity, message, fix, short, source, lowReason) {
+    return { severity: severity, message: message, fix: fix, short: short, source: source, lowReason: lowReason || "", replacement: null };
+  }
+
+  function describe(modelId, context) {
+    var entries = modelCatalog().index[modelId];
+    if (!entries) return null;
+    var picked = pick(entries, context);
+    if (!picked) return null;
+    var now = today(), label = LABEL[picked.platform];
+    var tag = picked.platform === "openai" ? "" : " (" + label + ")";
+    if (picked.platform === "azure" && picked.chosen.some(function (ea) { return ea[1]; })) {
+      return azureVersions(modelId, picked.chosen, now);
+    }
+    var ea = latest(picked.chosen), e = ea[0], alias = ea[1];
+    var repl = e.replacement;
+    var quoted = repl ? repl.split(" or ").map(function (r) { return '"' + r + '"'; }).join(" or ") : "";
+    var use = repl ? " Replace it with " + quoted + "." : "";
+    var fix = repl ? "Use " + quoted + " (or read the model name from config)." : "Move to a model the provider still supports.";
+    var src = e.source, date = e.shutdown, rep, msg, short, target, verb;
+    var subject = alias ? '"' + modelId + '" points to the dated snapshot(s) ' + e.ids.join(", ") + ", which" : '"' + modelId + '"';
+
+    if (e.regions) {
+      msg = "On " + label + ', "' + modelId + '" ' + regionsText(e.regions, now) + ".";
+      if (e.regions.some(function (g) { return g.date >= now; })) msg += " The Bedrock page names no replacement; move to an Active model.";
+      rep = report(HIGH, msg, "Move to an Active Bedrock model in your Region.",
+        '"' + modelId + '" Bedrock end of life from ' + fmt(e.regions[0].date), src);
+    } else if (!date) {
+      msg = '"' + modelId + '" is deprecated' + tag + ", and no shutdown date has been announced yet." + use;
+      rep = report(LOW, msg, fix, '"' + modelId + '" deprecated, no date yet', src, "no date yet");
+    } else if (e.after_shutdown === "routes") {
+      target = e.routes_to;
+      if (date >= now) {
+        msg = "From " + fmt(date) + ', requests to "' + modelId + '" on the ' + label + ' are routed to "' + target +
+          '" and billed at its rates. The ' + label + " page says to review the breaking API changes before then.";
+        rep = report(HIGH, msg, "Move to " + (quoted || '"' + target + '"') + " and test it before " + fmt(date) + ".",
+          '"' + modelId + '" routed to ' + target + " from " + fmt(date), src);
+      } else {
+        msg = "Since " + fmt(date) + ', requests to "' + modelId + '" on the ' + label + ' are served by "' + target + '".';
+        rep = report(LOW, msg, 'Use "' + (repl || target) + '" directly.',
+          '"' + modelId + '" served by ' + target + " since " + fmt(date), src, "routed to a newer model");
+      }
+    } else if (date >= now) {
+      verb = alias ? "shut down" : "shuts down";
+      msg = subject + " " + verb + " on " + fmt(date) + tag + "." + use;
+      rep = report(HIGH, msg, fix, '"' + modelId + '" shuts down on ' + fmt(date) + (repl ? " -> " + repl : ""), src);
+    } else {
+      verb = alias ? "were shut down" : "was shut down";
+      msg = subject + " " + verb + " on " + fmt(date) + tag + ", so requests to it fail." + use;
+      rep = report(HIGH, msg, fix, '"' + modelId + '" shut down on ' + fmt(date) + (repl ? " -> " + repl : ""), src);
+    }
+    rep.replacement = repl || null;
+    picked.notes.forEach(function (others) {
+      var o = latest(others)[0];
+      if (o.shutdown) rep.message += " On " + LABEL[o.platform] + ": " + (o.shutdown < now ? "retired " : "retires ") + fmt(o.shutdown) + ".";
+    });
+    return rep;
+  }
+
+  function azureVersions(modelId, chosen, now) {
+    var byDate = {};
+    chosen.forEach(function (ea) { (byDate[ea[0].shutdown] = byDate[ea[0].shutdown] || []).push(ea[0].version); });
+    var dates = Object.keys(byDate).sort();
+    var parts = dates.map(function (date) {
+      var vs = byDate[date].slice().sort(), many = vs.length > 1;
+      var verb = date < now ? (many ? "were retired on" : "was retired on") : (many ? "retire on" : "retires on");
+      return (many ? "versions " : "version ") + vs.join(", ") + " " + verb + " " + fmt(date);
+    });
+    var repls = {};
+    chosen.forEach(function (ea) { if (ea[0].replacement) repls[ea[0].replacement] = true; });
+    var rl = Object.keys(repls).sort();
+    var msg = 'On Azure OpenAI, "' + modelId + '" ' + parts.join("; ") + ". Check which version your deployment uses.";
+    if (rl.length) msg += " Listed replacement: " + rl.join(" or ") + ".";
+    var rep = report(HIGH, msg, "Upgrade the deployment to a supported model version.",
+      '"' + modelId + '" Azure retirement from ' + fmt(dates[0]), chosen[0][0].source);
+    rep.replacement = rl[0] || null;
+    return rep;
+  }
+
   // LC001
   // Any model name, from any provider. Used only to count how many model names
   // sit together in one list or map, so a catalog is not mistaken for a setting.
   var ANY_MODEL_RE = new RegExp(
-    "^(?:[\\w.-]+/)?(?:gpt-|chatgpt-|o[1-9](?:-|$)|claude-|gemini-|text-embedding-|" +
-    "text-davinci|davinci|babbage|dall-e|whisper-|tts-|codex-|llama|mistral|mixtral|" +
-    "command-|deepseek|qwen|grok-|sonar)[\\w.:-]*$", "i");
+    "^(?:[\\w.-]+/)?(?:[a-z0-9-]+\\.){0,2}(?:gpt-|chatgpt-|o[1-9](?:-|$)|claude-|gemini-|" +
+    "text-embedding-|text-davinci|davinci|babbage|dall-e|whisper-|tts-|codex-|llama|mistral|" +
+    "mixtral|command-|deepseek|qwen|grok-|sonar|imagen-|veo-|gemma|nova-|jamba|titan-)[\\w.:@-]*$", "i");
   var CATALOG_MIN = 4;
   var CATALOG_NOTE = "model list";
   var CATALOG_MESSAGE = " (One entry in a list of many model names, so lower priority.)";
-  var CATALOG_FIX = 'Remove it from the list, or add "' + REPLACEMENT + '" if the list is missing it.';
 
-  function lowerAsCatalog(f) {
-    f.severity = LOW;
-    f.lowReason = CATALOG_NOTE;
-    f.message += CATALOG_MESSAGE;
-    f.fix = CATALOG_FIX;
+  function modelFinding(line, rep, inCatalog) {
+    var f = finding(line, RULES.MODEL_ID, rep.message, rep.fix);
+    f.severity = rep.severity;
+    f.lowReason = rep.lowReason;
+    f.source = rep.source;
+    f.short = rep.short;
+    if (inCatalog && f.severity === HIGH) {
+      f.severity = LOW;
+      f.lowReason = CATALOG_NOTE;
+      f.message += CATALOG_MESSAGE;
+      f.fix = "Remove it from the list" + (rep.replacement ? ', or add "' + rep.replacement + '" if the list is missing it.' : ".");
+    }
     return f;
   }
 
-  // Map each string's start offset to the offset of its innermost open bracket.
-  function innermostContainers(lx) {
+  // Map each string's start offset to the offset of its innermost open bracket,
+  // and fill `parents` with each bracket's enclosing bracket.
+  function innermostContainers(lx, parents) {
     var starts = lx.strings.map(function (lit) { return lit.start; }).sort(function (a, b) { return a - b; });
     var out = {}, stack = [], si = 0, code = lx.code;
     for (var i = 0; i < code.length; i++) {
@@ -265,45 +476,70 @@
         si++;
       }
       var ch = code[i];
-      if (ch === "(" || ch === "[" || ch === "{") stack.push(i);
-      else if ((ch === ")" || ch === "]" || ch === "}") && stack.length) stack.pop();
+      if (ch === "(" || ch === "[" || ch === "{") {
+        if (parents) parents[i] = stack.length ? stack[stack.length - 1] : null;
+        stack.push(i);
+      } else if ((ch === ")" || ch === "]" || ch === "}") && stack.length) stack.pop();
     }
     for (; si < starts.length; si++) out[starts[si]] = stack.length ? stack[stack.length - 1] : null;
     return out;
   }
 
   function catalogContainers(lx) {
-    var where = innermostContainers(lx), names = {}, catalogs = {};
+    var parents = {}, where = innermostContainers(lx, parents), names = {}, catalogs = {}, records = {};
     lx.strings.forEach(function (lit) {
       var c = where[lit.start];
       if (c !== null && c !== undefined && !lit.docstring && ANY_MODEL_RE.test(lit.value)) {
-        (names[c] = names[c] || {})[lit.value] = true;
+        (names[c] = names[c] || []).push(lit.value);
       }
     });
+    function distinct(list) { var o = {}; list.forEach(function (x) { o[x] = true; }); return Object.keys(o).length; }
     Object.keys(names).forEach(function (c) {
-      if (Object.keys(names[c]).length >= CATALOG_MIN) catalogs[c] = true;
+      if (distinct(names[c]) >= CATALOG_MIN) catalogs[c] = true;
+      var p = parents[c];
+      if (names[c].length === 1 && p !== null && p !== undefined) (records[p] = records[p] || {})[c] = names[c][0];
+    });
+    Object.keys(records).forEach(function (p) {
+      var recs = records[p];
+      var vals = Object.keys(recs).map(function (k) { return recs[k]; });
+      if (distinct(vals) >= CATALOG_MIN) Object.keys(recs).forEach(function (c) { catalogs[c] = true; });
     });
     return { catalogs: catalogs, where: where };
+  }
+
+  var NAME_TEST_CALL = new RegExp(
+    "(?:startswith|startsWith|HasPrefix|hasPrefix|has_prefix|endswith|endsWith|HasSuffix|" +
+    "hasSuffix|includes|Contains|contains|indexOf|index|find|TrimPrefix|removeprefix)" +
+    "\\s*\\(\\s*(?:[^(),]*,\\s*)?[(\\[]?\\s*(?:[^()]*,\\s*)?$");
+
+  // The string is a prefix/substring pattern checked against a model name.
+  function isNameTest(lx, lit) {
+    var lineStart = lx.code.lastIndexOf("\n", lit.start - 1) + 1;
+    if (NAME_TEST_CALL.test(lx.code.slice(lineStart, lit.start))) return true;
+    var after = lx.code.slice(lit.end, lit.end + 8);
+    return lx.lang === PY && /^\s*(?:not\s+)?in\b/.test(after) && !inSet(lx.prevChar(lit.start), "([{,");
   }
 
   function checkModelIds(lx, skipLines) {
     var out = [], seen = {};
     var cc = catalogContainers(lx);
+    var context = platformsIn(lx.source);
     lx.strings.forEach(function (lit) {
       if (lit.docstring || !lit.value) return;
       if (/\s/.test(lit.value)) return;
       if (inSet(lx.prevChar(lit.start), "{,") && lx.nextChar(lit.end) === ":" && lx.prevChar(lit.start)) return;
+      if (isNameTest(lx, lit)) return;
       var container = cc.where[lit.start];
       var inCatalog = container !== null && container !== undefined && cc.catalogs[container] === true;
       var base = valueOffset(lx, lit);
-      retiringIds(lit.value).forEach(function (m) {
+      findModels(lit.value).forEach(function (m) {
         var line = lx.lineOf(base + m.index);
         var key = line + "|" + m.id;
         if (skipLines[line] || PRICE_RE.test(lx.lineText(line)) || seen[key]) return;
+        var rep = describe(m.id, context);
+        if (!rep) return;
         seen[key] = true;
-        var f = finding(line, RULES.MODEL_ID, modelMessage(m.id),
-          'Use "' + REPLACEMENT + '" (or read the model name from config).');
-        out.push(inCatalog ? lowerAsCatalog(f) : f);
+        out.push(modelFinding(line, rep, inCatalog));
       });
     });
     return out;
@@ -502,14 +738,145 @@
     return out;
   }
 
+  // ---------------------------------------------------------------- api_checks.py
+  // LC005: Claude sampling parameters.
+  var ANTHROPIC_FILE = new RegExp(
+    "^\\s*(?:import\\s+anthropic\\b|from\\s+anthropic\\b)|@anthropic-ai/sdk|anthropic-sdk-go|" +
+    "langchain_anthropic|@langchain/anthropic|api\\.anthropic\\.com", "m");
+  var CLAUDE_CALL = /\b(?:messages\s*\.\s*(?:batches\s*\.\s*)?(?:create|stream|parse)|ChatAnthropic)\s*\(/g;
+  var GO_CLAUDE_PARAMS = /\b(?:Beta)?MessageNewParams\s*\{/g;
+  var C_ALT = CLAUDE_SAMPLING_PARAMS.join("|");
+  var C_PY_KW = new RegExp("\\b(" + C_ALT + ")\\s*=(?!=)", "g");
+  var C_JS_KEY = new RegExp("\\b(" + C_ALT + ")\\s*:", "g");
+  var C_GO_FIELD = /\b(Temperature|TopP|TopK)\s*:/g;
+  var C_GO_NAME = { Temperature: "temperature", TopP: "top_p", TopK: "top_k" };
+
+  function claudeFinding(line, param) {
+    return finding(line, RULES.CLAUDE_SAMPLING,
+      '"' + param + '" is sent to the Claude Messages API. In API version 2026-10-21, which ' +
+      "the Python SDK 2.0.0 and TypeScript SDK 1.0.0 use, a request with temperature, " +
+      "top_p or top_k returns a 400 error on every model, even at the default value. " +
+      "On the older API version, Claude 4.7 and later models already return a 400 error " +
+      "for a non-default value.",
+      'Remove "' + param + '" and steer the output with the prompt instead.');
+  }
+
+  function keepValue(lx, valueAt) { return !matchAt(NULL_VALUE, lx.code, valueAt) && !matchAt(NULL_VALUE, lx.source, valueAt); }
+
+  function checkClaudeSampling(lx) {
+    if (!ANTHROPIC_FILE.test(lx.source)) return [];
+    var hits = [], spans = [];
+    if (lx.lang === GO) {
+      findAll(GO_CLAUDE_PARAMS, lx.code).forEach(function (m) {
+        var open = m.index + m[0].length - 1;
+        spans.push([open, closeParen(lx.code, open)]);
+      });
+      spans.forEach(function (sp) {
+        findAll(C_GO_FIELD, lx.code, sp[0], sp[1]).forEach(function (f) {
+          if (inSet(lx.prevChar(f.index), "{,") && keepValue(lx, f.index + f[1].length)) hits.push([f.index, C_GO_NAME[f[1]]]);
+        });
+      });
+    } else {
+      findAll(CLAUDE_CALL, lx.code).forEach(function (m) {
+        if (lx.code.slice(Math.max(0, m.index - 16), m.index).indexOf("threads") !== -1) return;
+        var open = m.index + m[0].length - 1;
+        spans.push([open, closeParen(lx.code, open)]);
+      });
+      var rx = lx.lang === PY ? C_PY_KW : C_JS_KEY;
+      spans.forEach(function (sp) {
+        findAll(rx, lx.code, sp[0], sp[1]).forEach(function (f) {
+          if (inSet(lx.prevChar(f.index), "(,{") && keepValue(lx, f.index + f[1].length)) hits.push([f.index, f[1]]);
+        });
+      });
+    }
+    var rawHttp = !spans.length && lx.source.indexOf("api.anthropic.com") !== -1;
+    lx.strings.forEach(function (lit) {
+      if (CLAUDE_SAMPLING_PARAMS.indexOf(lit.value) === -1 || lx.nextChar(lit.end) !== ":") return;
+      if (!inSet(lx.prevChar(lit.start), "{,") || !keepValue(lx, lit.end)) return;
+      if (rawHttp || spans.some(function (sp) { return sp[0] <= lit.start && lit.start < sp[1]; })) hits.push([lit.start, lit.value]);
+    });
+    hits.sort(function (a, b) { return a[0] - b[0] || (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0); });
+    var out = [], seen = {};
+    hits.forEach(function (h) {
+      var line = lx.lineOf(h[0]), key = line + "|" + h[1];
+      if (!seen[key]) { seen[key] = true; out.push(claudeFinding(line, h[1])); }
+    });
+    return out;
+  }
+
+  // LC006: retired OpenAI endpoints.
+  var OPENAI_FILE = new RegExp(
+    "^\\s*(?:import\\s+openai\\b|from\\s+openai\\b)|[\"']openai[\"']|[\"']openai/|openai-go|" +
+    "sashabaranov/go-openai|\\bAzureOpenAI\\b", "m");
+  var OA_CALLS = [
+    ["assistants", /\bbeta\s*\.\s*(?:assistants|threads)\b/g],
+    ["assistants", /\bBeta\s*\.\s*(?:Assistants|Threads)\b/g],
+    ["assistants", /\b(?:CreateAssistant|CreateThread|CreateThreadAndRun|CreateRun)\s*\(/g],
+    ["evals", /\bevals\s*\.\s*(?:create|update|delete|runs\s*\.\s*create)\s*\(/g],
+    ["evals", /\bEvals\s*\.\s*(?:New|Update|Delete|Runs\s*\.\s*New)\s*\(/g],
+    ["audio_translations", /\baudio\s*\.\s*translations\s*\.\s*create\s*\(/g],
+    ["audio_translations", /\bAudio\s*\.\s*Translations\s*\.\s*New\s*\(|\bCreateTranslation\s*\(/g],
+    ["videos", /\bvideos\s*\.\s*(?:create|create_and_poll|createAndPoll|remix|retrieve|list|delete|download_content|downloadContent)\s*\(/g],
+    ["videos", /\bVideos\s*\.\s*(?:New|Get|List|Delete|Remix|DownloadContent)\s*\(/g]
+  ];
+  var OA_STRINGS = [
+    ["prompts", /^pmpt_[A-Za-z0-9]+$/],
+    ["realtime_v1", /\brealtime=v1\b/],
+    ["assistants_v1", /\bassistants=v1\b/],
+    ["assistants", /\bassistants=v2\b/]
+  ];
+  var OA_PATHS = [
+    ["assistants", /\/v1\/(?:assistants|threads)\b/],
+    ["prompts", /\/v1\/prompts\b/],
+    ["evals", /\/v1\/evals\b/],
+    ["audio_translations", /\/v1\/audio\/translations\b/],
+    ["videos", /\/v1\/videos\b/],
+    ["legacy", /\/v1\/(?:fine-tunes|edits|engines|answers|classifications)\b/]
+  ];
+
+  function endpointFinding(line, key) {
+    var ep = OPENAI_ENDPOINTS[key], name = ep[0], date = ep[1], repl = ep[2], now = today(), verb;
+    if (key === "evals") verb = date < now ? "became read-only on" : "becomes read-only on";
+    else verb = date < now ? "was shut down on" : "shuts down on";
+    var msg = name + " " + verb + " " + fmt(date) + ".";
+    if (date < now && key !== "evals") msg += " Requests to it fail.";
+    return finding(line, RULES.OPENAI_ENDPOINT, msg,
+      repl ? "Move to " + repl + "." : "OpenAI lists no one-to-one replacement; remove this call.");
+  }
+
+  function checkOpenaiEndpoints(lx) {
+    var hits = [], openaiFile = OPENAI_FILE.test(lx.source);
+    if (openaiFile) {
+      OA_CALLS.forEach(function (kr) {
+        findAll(kr[1], lx.code).forEach(function (m) { hits.push([m.index, kr[0]]); });
+      });
+    }
+    lx.strings.forEach(function (lit) {
+      if (lit.docstring || !lit.value) return;
+      OA_STRINGS.forEach(function (kr) { if (kr[1].test(lit.value)) hits.push([lit.start, kr[0]]); });
+      if (openaiFile || lit.value.indexOf("api.openai.com") !== -1) {
+        OA_PATHS.forEach(function (kr) { if (kr[1].test(lit.value)) hits.push([lit.start, kr[0]]); });
+      }
+    });
+    hits.sort(function (a, b) { return a[0] - b[0] || (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0); });
+    var out = [], seen = {};
+    hits.forEach(function (h) {
+      var line = lx.lineOf(h[0]), key = line + "|" + h[1];
+      if (!seen[key]) { seen[key] = true; out.push(endpointFinding(line, h[1])); }
+    });
+    return out;
+  }
+
   function runAll(lx) {
-    if (!isRelevant(lx) && !findAll(TIKTOKEN_CALL[lx.lang], lx.code).length) return [];
-    var tik = checkTiktoken(lx);
-    var skip = {};
-    tik.forEach(function (f) { skip[f.line] = true; });
-    var findings = tik.concat(checkModelIds(lx, skip));
-    if (isRelevant(lx)) findings = findings.concat(checkChatTools(lx), checkSampling(lx));
-    return findings;
+    var relevant = isRelevant(lx);
+    var tiktokenLines = {}, anyTiktoken = false;
+    findAll(TIKTOKEN_CALL[lx.lang], lx.code).forEach(function (m) { tiktokenLines[lx.lineOf(m.index)] = true; anyTiktoken = true; });
+    // A model name passed to a tokenizer lookup is not an API call, so LC001
+    // skips those lines; LC002 reports the ones that break.
+    var findings = (relevant || anyTiktoken) ? checkTiktoken(lx) : [];
+    findings = findings.concat(checkModelIds(lx, tiktokenLines));
+    if (relevant) findings = findings.concat(checkChatTools(lx), checkSampling(lx));
+    return findings.concat(checkClaudeSampling(lx), checkOpenaiEndpoints(lx));
   }
 
   // ---------------------------------------------------------------- config.py
@@ -655,6 +1022,7 @@
 
   function checkConfig(text, kind) {
     var lines = text.split("\n");
+    var context = platformsIn(text);
     var pairs = configPairs(text, kind).filter(function (p) { return isModelKey(p.key); });
     var names = {}, catalogs = {};
     pairs.forEach(function (p) {
@@ -665,13 +1033,18 @@
     pairs.forEach(function (p) {
       if (!p.value || /\s/.test(p.value)) return;
       if (PRICE_RE.test(p.line > 0 && p.line <= lines.length ? lines[p.line - 1] : "")) return;
-      retiringIds(p.value).forEach(function (m) {
+      findModels(p.value).forEach(function (m) {
         var k = p.line + "|" + m.id;
         if (seen[k]) return;
+        var rep = describe(m.id, context);
+        if (!rep) return;
         seen[k] = true;
-        var f = finding(p.line, RULES.MODEL_ID, modelMessage(m.id) + ' (Config key "' + p.key + '".)',
-          "Set " + p.key + ' to "' + REPLACEMENT + '".');
-        out.push(catalogs[p.group] ? lowerAsCatalog(f) : f);
+        var f = modelFinding(p.line, rep, catalogs[p.group] === true);
+        f.message += ' (Config key "' + p.key + '".)';
+        if (f.severity === HIGH && rep.replacement && rep.replacement.indexOf(" or ") === -1) {
+          f.fix = "Set " + p.key + ' to "' + rep.replacement + '".';
+        }
+        out.push(f);
       });
     });
     return out;
@@ -718,5 +1091,5 @@
     return PY;
   }
 
-  root.LunaCheck = { check: check, detectLanguage: detectLanguage, version: "0.3.0" };
+  root.LunaCheck = { check: check, detectLanguage: detectLanguage, version: "0.4.0" };
 })(typeof window !== "undefined" ? window : this);
