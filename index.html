@@ -210,6 +210,9 @@
   .work .found { color: var(--ink-2); font-size: .96rem; }
   .work .meta { display: flex; align-items: center; gap: 12px; white-space: nowrap; justify-content: flex-start; }
   .work .meta a { font-size: .9rem; }
+  .work .meta.stack { flex-direction: column; align-items: flex-start; gap: 8px; white-space: normal; }
+  .work .meta.stack > span { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+  .work .meta.stack .status { white-space: nowrap; }
   .status { font-family: var(--mono); font-size: .74rem; border-radius: 999px; padding: 2px 10px; background: var(--sage-soft); color: var(--sage-ink); }
   .status.plain { background: var(--code-bg); color: var(--ink-2); }
 
@@ -519,8 +522,8 @@
   <ul class="work">
     <li>
       <div class="proj">dsl<span>ProjectDiscovery · Go</span></div>
-      <div class="found"><code>llm_prompt</code> defaulted to <code>gpt-4o-mini</code> and the shared client always sent <code>temperature</code>. The maintainer confirmed it, fixed temperature upstream, and opened #382 with my commit.</div>
-      <div class="meta"><span class="status">open</span><a href="https://github.com/projectdiscovery/dsl/issues/381">Issue #381</a><a href="https://github.com/projectdiscovery/dsl/pull/382">PR #382</a></div>
+      <div class="found"><code>llm_prompt</code> defaulted to <code>gpt-4o-mini</code> and the shared client always sent <code>temperature</code>. The maintainer confirmed it, fixed temperature upstream, and opened #382 with my commit. My commit is now part of ProjectDiscovery's dsl.</div>
+      <div class="meta stack"><span><span class="status">merged</span><a href="https://github.com/projectdiscovery/dsl/pull/382">PR #382</a></span><span><span class="status">closed as completed</span><a href="https://github.com/projectdiscovery/dsl/issues/381">Issue #381</a></span></div>
     </li>
     <li>
       <div class="proj">openrisk<span>ProjectDiscovery · Go</span></div>
